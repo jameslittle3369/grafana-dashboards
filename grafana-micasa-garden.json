@@ -1,0 +1,466 @@
+{
+  "apiVersion": "dashboard.grafana.app/v2",
+  "kind": "Dashboard",
+  "metadata": {
+    "namespace": "default"
+  },
+  "spec": {
+    "annotations": [
+      {
+        "kind": "AnnotationQuery",
+        "spec": {
+          "query": {
+            "kind": "DataQuery",
+            "group": "grafana",
+            "version": "v0",
+            "datasource": {
+              "name": "-- Grafana --"
+            },
+            "spec": {}
+          },
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "builtIn": true
+        }
+      }
+    ],
+    "cursorSync": "Off",
+    "editable": true,
+    "elements": {
+      "panel-1": {
+        "kind": "Panel",
+        "spec": {
+          "id": 1,
+          "title": "Garden Zone Temperatures",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfvq4sip0ynlsf"
+                      },
+                      "spec": {
+                        "dataset": "api",
+                        "editorMode": "code",
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "WITH combined AS (\n    SELECT b.created_at AS time, a.pretty_name, (b.primary_value * 9/5) + 32 AS temp_f\n    FROM tstats_thermometer a\n    JOIN tstats_tstatlog b ON a.romid = b.romid_id\n\n    UNION ALL\n\n    SELECT b.created_at AS time, a.pretty_name, b.temp_f\n    FROM tstats_thermohygrometer a\n    JOIN tstats_thermohygrostatlog b ON b.thermohygrometer_id = a.id_channel\n),\nin_window AS (\n    SELECT time, pretty_name, temp_f FROM combined WHERE $__timeFilter(time)\n),\n-- Carries each device's value backward to the start of the visible\n-- window (its most recent reading at/before the window start), so the\n-- line doesn't start from nothing if the last real change predates\n-- this window. Bounded to the last 48 hours before the window start --\n-- without a bound this has to scan/sort the *entire* historical table\n-- per device (years of legacy data), which is what was timing out.\n-- ORDER BY qualifies combined.time explicitly -- without that, Postgres\n-- resolves the bare \"time\" to this SELECT's own output alias (a\n-- constant) instead of the real per-row timestamp, silently breaking\n-- \"most recent\" into an arbitrary row.\nbackfilled_start AS (\n    SELECT DISTINCT ON (pretty_name) $__timeFrom()::timestamptz AS time, pretty_name, temp_f\n    FROM combined\n    WHERE time BETWEEN $__timeFrom()::timestamptz - interval '48 hours' AND $__timeFrom()::timestamptz\n    ORDER BY pretty_name, combined.time DESC\n),\n-- Carries each device's value forward to now -- dedup (thermohygrometers)\n-- means nothing gets logged again until the value actually changes.\n-- Same bounded-lookback and combined.time qualification reasons as above.\nforward_filled_now AS (\n    SELECT DISTINCT ON (pretty_name) now()::timestamptz AS time, pretty_name, temp_f\n    FROM combined\n    WHERE time BETWEEN now() - interval '48 hours' AND now()\n    ORDER BY pretty_name, combined.time DESC\n),\nall_rows AS (\n    SELECT * FROM in_window\n    UNION ALL SELECT * FROM backfilled_start\n    UNION ALL SELECT * FROM forward_filled_now\n)\nSELECT\n    date_trunc('minute', time) AS time,\n    MAX(CASE WHEN pretty_name = 'Master Bedroom' THEN temp_f END) AS \"Master Bedroom\",\n    MAX(CASE WHEN pretty_name = 'Gdn Clone' THEN temp_f END) AS \"Gdn Clone\",\n    MAX(CASE WHEN pretty_name = 'Out SEbS 142\u00b0' THEN temp_f END) AS \"Out SEbS 142\u00b0\",\n    MAX(CASE WHEN pretty_name = 'Gdn Near Res.' THEN temp_f END) AS \"Gdn Near Res.\",\n    MAX(CASE WHEN pretty_name = 'Garage' THEN temp_f END) AS \"Garage\",\n    MAX(CASE WHEN pretty_name = 'Main Attic' THEN temp_f END) AS \"Main Attic\",\n    MAX(CASE WHEN pretty_name = 'Garage Attic' THEN temp_f END) AS \"Garage Attic\",\n    MAX(CASE WHEN pretty_name = 'Jessica''s' THEN temp_f END) AS \"Jessica's\",\n    MAX(CASE WHEN pretty_name = 'Gdn Veg' THEN temp_f END) AS \"Gdn Veg\",\n    MAX(CASE WHEN pretty_name = 'Gdn Flower' THEN temp_f END) AS \"Gdn Flower\",\n    MAX(CASE WHEN pretty_name = 'Kitchen' THEN temp_f END) AS \"Kitchen\",\n    MAX(CASE WHEN pretty_name = 'Gdn Vent' THEN temp_f END) AS \"Gdn Vent\",\n    MAX(CASE WHEN pretty_name = 'Clone' THEN temp_f END) AS \"Clone\",\n    MAX(CASE WHEN pretty_name = 'Veg' THEN temp_f END) AS \"Veg\",\n    MAX(CASE WHEN pretty_name = 'Flower' THEN temp_f END) AS \"Flower\",\n    MAX(CASE WHEN pretty_name = 'Office' THEN temp_f END) AS \"Office\",\n    MAX(CASE WHEN pretty_name = 'Outside Station' THEN temp_f END) AS \"Outside Station\",\n    MAX(CASE WHEN pretty_name = 'Laundry Room' THEN temp_f END) AS \"Laundry Room\",\n    MAX(CASE WHEN pretty_name = 'Acurite-Tower 5715' THEN temp_f END) AS \"Acurite-Tower 5715\",\n    MAX(CASE WHEN pretty_name = 'Acurite-Tower 10196' THEN temp_f END) AS \"Acurite-Tower 10196\"\nFROM all_rows\nGROUP BY date_trunc('minute', time)\nORDER BY time;",
+                        "sql": {
+                          "columns": [
+                            {
+                              "parameters": [],
+                              "type": "function"
+                            }
+                          ],
+                          "groupBy": [
+                            {
+                              "property": {
+                                "type": "string"
+                              },
+                              "type": "groupBy"
+                            }
+                          ],
+                          "limit": 50
+                        },
+                        "table": "api"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "filterFieldsByName",
+                  "spec": {
+                    "options": {
+                      "include": {
+                        "names": [
+                          "time",
+                          "Gdn Clone",
+                          "Gdn Near Res.",
+                          "Gdn Veg",
+                          "Gdn Flower",
+                          "Gdn Vent"
+                        ]
+                      }
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.2.0",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "min",
+                    "max",
+                    "mean"
+                  ],
+                  "displayMode": "table",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "thresholds": {
+                    "mode": "percentage",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      },
+                      {
+                        "value": 40,
+                        "color": "#EAB839"
+                      },
+                      {
+                        "value": 60,
+                        "color": "red"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "palette-classic",
+                    "seriesBy": "last"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 7,
+                    "gradientMode": "opacity",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "smooth",
+                    "lineStyle": {
+                      "fill": "solid"
+                    },
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "auto",
+                    "showValues": true,
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "fieldMinMax": false
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-2": {
+        "kind": "Panel",
+        "spec": {
+          "id": 2,
+          "title": "Garden Zone Stats",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "-- Dashboard --"
+                      },
+                      "spec": {
+                        "panelId": 1
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "13.2.0",
+            "spec": {
+              "options": {
+                "reduceOptions": {
+                  "values": false,
+                  "calcs": [
+                    "lastNotNull",
+                    "min",
+                    "max",
+                    "mean"
+                  ],
+                  "fields": ""
+                },
+                "orientation": "auto",
+                "textMode": "auto",
+                "colorMode": "value",
+                "graphMode": "area",
+                "justifyMode": "auto",
+                "percentChangeColorMode": "standard",
+                "showPercentChange": false,
+                "wideLayout": true
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "green"
+                      }
+                    ]
+                  },
+                  "mappings": []
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-3": {
+        "kind": "Panel",
+        "spec": {
+          "id": 3,
+          "title": "Garden Zone \u2014 Latest Reading",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfvq4sip0ynlsf"
+                      },
+                      "spec": {
+                        "dataset": "api",
+                        "editorMode": "code",
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "WITH combined AS (\n    SELECT b.created_at AS time, a.pretty_name, (b.primary_value * 9/5) + 32 AS temp_f\n    FROM tstats_thermometer a JOIN tstats_tstatlog b ON a.romid = b.romid_id\n    UNION ALL\n    SELECT b.created_at AS time, a.pretty_name, b.temp_f\n    FROM tstats_thermohygrometer a JOIN tstats_thermohygrostatlog b ON b.thermohygrometer_id = a.id_channel\n),\nlatest AS (\n    SELECT DISTINCT ON (pretty_name) pretty_name, temp_f, time\n    FROM combined\n    WHERE pretty_name IN ('Gdn Clone', 'Gdn Near Res.', 'Gdn Veg', 'Gdn Flower', 'Gdn Vent')\n    ORDER BY pretty_name, time DESC\n),\nrange_stats AS (\n    SELECT pretty_name, MAX(temp_f) AS high, MIN(temp_f) AS low\n    FROM combined\n    WHERE pretty_name IN ('Gdn Clone', 'Gdn Near Res.', 'Gdn Veg', 'Gdn Flower', 'Gdn Vent') AND $__timeFilter(time)\n    GROUP BY pretty_name\n)\nSELECT\n    l.pretty_name AS \"Zone\",\n    l.temp_f AS \"Temp (\u00b0F)\",\n    r.high AS \"High (\u00b0F)\",\n    r.low AS \"Low (\u00b0F)\",\n    l.time AS \"Last Reading\"\nFROM latest l\nLEFT JOIN range_stats r ON r.pretty_name = l.pretty_name\nORDER BY l.pretty_name;",
+                        "sql": {
+                          "columns": [
+                            {
+                              "parameters": [],
+                              "type": "function"
+                            }
+                          ],
+                          "groupBy": [
+                            {
+                              "property": {
+                                "type": "string"
+                              },
+                              "type": "groupBy"
+                            }
+                          ],
+                          "limit": 50
+                        },
+                        "table": "api"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "13.2.0",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "footer": {
+                  "countRows": false,
+                  "fields": "",
+                  "reducer": [
+                    "sum"
+                  ],
+                  "show": false
+                },
+                "showHeader": true,
+                "showTypeIcons": false
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "inspect": false
+                  },
+                  "mappings": []
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      }
+    },
+    "layout": {
+      "kind": "GridLayout",
+      "spec": {
+        "items": [
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 0,
+              "width": 24,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-3"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 8,
+              "width": 24,
+              "height": 4,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-2"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 12,
+              "width": 24,
+              "height": 11,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-1"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "links": [
+      {
+        "asDropdown": true,
+        "icon": "external link",
+        "includeVars": false,
+        "keepTime": true,
+        "tags": [
+          "micasa"
+        ],
+        "targetBlank": false,
+        "title": "MiCasa Dashboards",
+        "type": "dashboards"
+      }
+    ],
+    "liveNow": false,
+    "preload": false,
+    "tags": [
+      "micasa"
+    ],
+    "timeSettings": {
+      "timezone": "browser",
+      "from": "now-6h",
+      "to": "now",
+      "autoRefresh": "5m",
+      "autoRefreshIntervals": [
+        "5s",
+        "10s",
+        "30s",
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h",
+        "2h",
+        "1d"
+      ],
+      "hideTimepicker": false,
+      "fiscalYearStartMonth": 0
+    },
+    "title": "MiCasa - Indoor Garden",
+    "variables": [],
+    "preferences": {
+      "layout": {
+        "kind": "GridLayout",
+        "spec": {
+          "items": []
+        }
+      }
+    }
+  }
+}

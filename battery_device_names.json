@@ -1,0 +1,27 @@
+{
+  "ring": [
+    "Back L",
+    "Back Zebo",
+    "Back shed",
+    "Back walk",
+    "Back",
+    "Driveway",
+    "Dunno Where 1",
+    "Front L",
+    "Front",
+    "Playground",
+    "Sidewalk"
+  ],
+  "ikea": ["Left",
+ "Top Right",
+ "Top Middle",
+ "Open/close remote living",
+ "Top Remote",
+ "Top Left",
+ "TRADFRI open/close remote",
+ "Right Bedroom Blind",
+ "Middle",
+ "Left Bedroom Blind",
+ "Right",
+ "Middle Bedroom Blind"]
+}

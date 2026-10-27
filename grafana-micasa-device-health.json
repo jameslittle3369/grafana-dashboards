@@ -1,0 +1,473 @@
+{
+  "apiVersion": "dashboard.grafana.app/v2",
+  "kind": "Dashboard",
+  "metadata": {
+    "namespace": "default"
+  },
+  "spec": {
+    "annotations": [
+      {
+        "kind": "AnnotationQuery",
+        "spec": {
+          "query": {
+            "kind": "DataQuery",
+            "group": "grafana",
+            "version": "v0",
+            "datasource": {
+              "name": "-- Grafana --"
+            },
+            "spec": {}
+          },
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "builtIn": true
+        }
+      }
+    ],
+    "cursorSync": "Off",
+    "editable": true,
+    "elements": {
+      "panel-1": {
+        "kind": "Panel",
+        "spec": {
+          "id": 1,
+          "title": "Device Battery Percentage",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfvq4sip0ynlsf"
+                      },
+                      "spec": {
+                        "dataset": "api",
+                        "editorMode": "code",
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "select name || '-Ikea' Device,battery_pct Percentage ,last_seen_at as last from ikea_devices\n\nUNION ALL\n\nselect name || '-Ring',battery_life as Percentage,last_motion_at as last from ring_devices\norder by Percentage",
+                        "sql": {
+                          "columns": [
+                            {
+                              "parameters": [],
+                              "type": "function"
+                            }
+                          ],
+                          "groupBy": [
+                            {
+                              "property": {
+                                "type": "string"
+                              },
+                              "type": "groupBy"
+                            }
+                          ],
+                          "limit": 50
+                        },
+                        "table": "api"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "barchart",
+            "version": "13.2.0",
+            "spec": {
+              "options": {
+                "barRadius": 0.25,
+                "barWidth": 0.9,
+                "fullHighlight": false,
+                "groupWidth": 0.8,
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "right",
+                  "showLegend": true
+                },
+                "orientation": "horizontal",
+                "showValue": "always",
+                "stacking": "none",
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                },
+                "xField": "time",
+                "xTickLabelRotation": 0,
+                "xTickLabelSpacing": 100
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "percent",
+                  "max": 100,
+                  "thresholds": {
+                    "mode": "percentage",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "red"
+                      },
+                      {
+                        "value": 15,
+                        "color": "#EAB839"
+                      },
+                      {
+                        "value": 35,
+                        "color": "green"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "custom": {
+                    "axisBorderShow": true,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisGridShow": true,
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "axisWidth": 1,
+                    "fillOpacity": 100,
+                    "gradientMode": "hue",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "lineWidth": 1,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "line"
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-2": {
+        "kind": "Panel",
+        "spec": {
+          "id": 2,
+          "title": "Battery Trend",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfvq4sip0ynlsf"
+                      },
+                      "spec": {
+                        "dataset": "api",
+                        "editorMode": "code",
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "WITH logs AS (\n    SELECT l.recorded_at AS time, d.name || '-Ikea' AS device, l.battery_pct::numeric AS battery_pct\n    FROM ikea_device_logs l\n    JOIN ikea_devices d ON d.id = l.device_id\n\n    UNION ALL\n\n    SELECT l.recorded_at AS time, d.name || '-Ring' AS device, l.battery_life::numeric AS battery_pct\n    FROM ring_device_logs l\n    JOIN ring_devices d ON d.id = l.device_id\n)\n-- Pivoted wide format (one named column per device) instead of a generic\n-- long-format \"metric\"/\"value\" pair split via a transformation -- matches\n-- how every other multi-series panel in these dashboards already works\n-- (Inside Temperatures, Energy Circuits, HVAC Zones, etc.), and sidesteps\n-- Grafana's field-display-name disambiguation entirely: each column's own\n-- alias IS the series name, so there's no shared/generic field name left\n-- for Grafana to need to disambiguate (that's what was producing the\n-- stray \"value\" text in earlier label-based attempts).\n--\n-- Only rows inside the selected time window are counted -- no backward or\n-- forward fill. Ring devices log roughly every 5 minutes while active, so\n-- a device that's reporting normally already has plenty of real in-window\n-- points for the sparkline; a device that hasn't logged at all in this\n-- window (dead battery, offline, removed) correctly gets an all-NULL\n-- column here, and \"lastNotNull\" + the panel's \"No value\" option then\n-- shows \"-\" for it instead of silently repeating a stale old reading as\n-- if it were current. Device list comes from battery_device_names.json --\n-- add a name there when hardware changes, same as HVAC zones/energy\n-- circuits elsewhere in this project already require a code change for.\nSELECT\n    date_trunc('minute', time) AS time,\n    MAX(battery_pct) FILTER (WHERE device = 'Back L-Ring') AS \"Back L-Ring\",\n    MAX(battery_pct) FILTER (WHERE device = 'Back Zebo-Ring') AS \"Back Zebo-Ring\",\n    MAX(battery_pct) FILTER (WHERE device = 'Back shed-Ring') AS \"Back shed-Ring\",\n    MAX(battery_pct) FILTER (WHERE device = 'Back walk-Ring') AS \"Back walk-Ring\",\n    MAX(battery_pct) FILTER (WHERE device = 'Back-Ring') AS \"Back-Ring\",\n    MAX(battery_pct) FILTER (WHERE device = 'Driveway-Ring') AS \"Driveway-Ring\",\n    MAX(battery_pct) FILTER (WHERE device = 'Dunno Where 1-Ring') AS \"Dunno Where 1-Ring\",\n    MAX(battery_pct) FILTER (WHERE device = 'Front L-Ring') AS \"Front L-Ring\",\n    MAX(battery_pct) FILTER (WHERE device = 'Front-Ring') AS \"Front-Ring\",\n    MAX(battery_pct) FILTER (WHERE device = 'Playground-Ring') AS \"Playground-Ring\",\n    MAX(battery_pct) FILTER (WHERE device = 'Sidewalk-Ring') AS \"Sidewalk-Ring\",\n    MAX(battery_pct) FILTER (WHERE device = 'Left-Ikea') AS \"Left-Ikea\",\n    MAX(battery_pct) FILTER (WHERE device = 'Top Right-Ikea') AS \"Top Right-Ikea\",\n    MAX(battery_pct) FILTER (WHERE device = 'Top Middle-Ikea') AS \"Top Middle-Ikea\",\n    MAX(battery_pct) FILTER (WHERE device = 'Open/close remote living-Ikea') AS \"Open/close remote living-Ikea\",\n    MAX(battery_pct) FILTER (WHERE device = 'Top Remote-Ikea') AS \"Top Remote-Ikea\",\n    MAX(battery_pct) FILTER (WHERE device = 'Top Left-Ikea') AS \"Top Left-Ikea\",\n    MAX(battery_pct) FILTER (WHERE device = 'TRADFRI open/close remote-Ikea') AS \"TRADFRI open/close remote-Ikea\",\n    MAX(battery_pct) FILTER (WHERE device = 'Right Bedroom Blind-Ikea') AS \"Right Bedroom Blind-Ikea\",\n    MAX(battery_pct) FILTER (WHERE device = 'Middle-Ikea') AS \"Middle-Ikea\",\n    MAX(battery_pct) FILTER (WHERE device = 'Left Bedroom Blind-Ikea') AS \"Left Bedroom Blind-Ikea\",\n    MAX(battery_pct) FILTER (WHERE device = 'Right-Ikea') AS \"Right-Ikea\",\n    MAX(battery_pct) FILTER (WHERE device = 'Middle Bedroom Blind-Ikea') AS \"Middle Bedroom Blind-Ikea\"\nFROM logs\nWHERE $__timeFilter(time)\nGROUP BY date_trunc('minute', time)\nORDER BY time;",
+                        "sql": {
+                          "columns": [
+                            {
+                              "parameters": [],
+                              "type": "function"
+                            }
+                          ],
+                          "groupBy": [
+                            {
+                              "property": {
+                                "type": "string"
+                              },
+                              "type": "groupBy"
+                            }
+                          ],
+                          "limit": 50
+                        },
+                        "table": "api"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "13.2.0",
+            "spec": {
+              "options": {
+                "reduceOptions": {
+                  "values": false,
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": ""
+                },
+                "orientation": "auto",
+                "textMode": "auto",
+                "colorMode": "value",
+                "graphMode": "line",
+                "justifyMode": "auto",
+                "percentChangeColorMode": "standard",
+                "showPercentChange": true,
+                "wideLayout": true,
+                "text": {
+                  "titleSize": 14,
+                  "valueSize": 12
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "red"
+                      },
+                      {
+                        "value": 15,
+                        "color": "#EAB839"
+                      },
+                      {
+                        "value": 35,
+                        "color": "green"
+                      }
+                    ]
+                  },
+                  "mappings": [],
+                  "unit": "percent",
+                  "noValue": "-"
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-3": {
+        "kind": "Panel",
+        "spec": {
+          "id": 3,
+          "title": "Device Battery \u2014 Latest Reading",
+          "description": "",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-postgresql-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "cfvq4sip0ynlsf"
+                      },
+                      "spec": {
+                        "dataset": "api",
+                        "editorMode": "code",
+                        "format": "table",
+                        "rawQuery": true,
+                        "rawSql": "select name || '-Ikea' Device,battery_pct Percentage ,last_seen_at as last from ikea_devices\n\nUNION ALL\n\nselect name || '-Ring',battery_life as Percentage,last_motion_at as last from ring_devices\norder by Percentage",
+                        "sql": {
+                          "columns": [
+                            {
+                              "parameters": [],
+                              "type": "function"
+                            }
+                          ],
+                          "groupBy": [
+                            {
+                              "property": {
+                                "type": "string"
+                              },
+                              "type": "groupBy"
+                            }
+                          ],
+                          "limit": 50
+                        },
+                        "table": "api"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "13.2.0",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "footer": {
+                  "countRows": false,
+                  "fields": "",
+                  "reducer": [
+                    "sum"
+                  ],
+                  "show": false
+                },
+                "showHeader": true,
+                "showTypeIcons": false
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "inspect": false
+                  },
+                  "mappings": [],
+                  "noValue": "-"
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      }
+    },
+    "layout": {
+      "kind": "GridLayout",
+      "spec": {
+        "items": [
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 0,
+              "width": 24,
+              "height": 11,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-1"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 11,
+              "width": 24,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-2"
+              }
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "x": 0,
+              "y": 19,
+              "width": 24,
+              "height": 8,
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-3"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "links": [
+      {
+        "asDropdown": true,
+        "icon": "external link",
+        "includeVars": false,
+        "keepTime": true,
+        "tags": [
+          "micasa"
+        ],
+        "targetBlank": false,
+        "title": "MiCasa Dashboards",
+        "type": "dashboards"
+      }
+    ],
+    "liveNow": false,
+    "preload": false,
+    "tags": [
+      "micasa"
+    ],
+    "timeSettings": {
+      "timezone": "browser",
+      "from": "now-6h",
+      "to": "now",
+      "autoRefresh": "5m",
+      "autoRefreshIntervals": [
+        "5s",
+        "10s",
+        "30s",
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h",
+        "2h",
+        "1d"
+      ],
+      "hideTimepicker": false,
+      "fiscalYearStartMonth": 0
+    },
+    "title": "MiCasa - Device Health",
+    "variables": [],
+    "preferences": {
+      "layout": {
+        "kind": "GridLayout",
+        "spec": {
+          "items": []
+        }
+      }
+    }
+  }
+}
